@@ -3,8 +3,6 @@
 A local-first activity tracker and Pomodoro timer for Windows and Chrome.
 Built by Team Vexor Studio.
 
-![Team Vexor](images/team-vexor.png)
-
 ## What it does
 - Pomodoro timer with focus/short/long break cycles
 - Tracks which app and site is active, all day
