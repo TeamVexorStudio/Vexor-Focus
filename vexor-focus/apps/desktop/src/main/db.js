@@ -1,0 +1,47 @@
+const path = require('node:path');
+const fs = require('node:fs');
+const os = require('node:os');
+const { Database } = require('node-sqlite3-wasm');
+
+const CONFIG_DIR = path.join(
+  process.env.APPDATA || path.join(os.homedir(), '.config'),
+  'TeamVexor'
+);
+fs.mkdirSync(CONFIG_DIR, { recursive: true });
+
+const db = new Database(path.join(CONFIG_DIR, 'vexor.db'));
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS activity (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    source        TEXT NOT NULL,
+    app           TEXT,
+    domain        TEXT,
+    title         TEXT,
+    started_at    INTEGER NOT NULL,
+    ended_at      INTEGER,
+    duration_ms   INTEGER NOT NULL DEFAULT 0,
+    idle          INTEGER NOT NULL DEFAULT 0,
+    focus_session_id TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_activity_started ON activity(started_at);
+
+  CREATE TABLE IF NOT EXISTS focus_sessions (
+    id          TEXT PRIMARY KEY,
+    mode        TEXT NOT NULL,
+    planned_ms  INTEGER NOT NULL,
+    started_at  INTEGER NOT NULL,
+    ended_at    INTEGER,
+    completed   INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS categories (
+    match     TEXT PRIMARY KEY,
+    category  TEXT NOT NULL,
+    productive INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+`);
+
+module.exports = { db, CONFIG_DIR };

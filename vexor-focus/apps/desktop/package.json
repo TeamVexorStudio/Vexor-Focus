@@ -1,0 +1,17 @@
+{
+  "name": "@team-vexor/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "active-win": "^8.2.1",
+    "node-sqlite3-wasm": "^0.8.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^32.0.0"
+  }
+}

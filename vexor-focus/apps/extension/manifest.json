@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Vexor Focus",
+  "version": "0.1.0",
+  "description": "Local-first activity tracking and Pomodoro blocking. Pairs with Vexor Focus for Windows.",
+  "permissions": ["tabs", "storage", "alarms", "declarativeNetRequest"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Vexor Focus",
+    "default_icon": {
+      "16":  "icon-16.png",
+      "32":  "icon-32.png",
+      "48":  "icon-48.png",
+      "128": "icon-128.png"
+    }
+  },
+  "icons": {
+    "16":  "icon-16.png",
+    "32":  "icon-32.png",
+    "48":  "icon-48.png",
+    "128": "icon-128.png"
+  }
+}

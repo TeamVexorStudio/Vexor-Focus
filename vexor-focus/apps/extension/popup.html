@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root{
+    --vex-green:#39ff14;
+    --vex-blue:#00bfff;
+    --bg:#0a0c10; --surface:#14171e; --line:rgba(255,255,255,.08);
+    --text:#e9ecf3; --muted:#7d879c;
+  }
+  body{
+    width:300px; margin:0;
+    background:var(--bg); color:var(--text);
+    font:13px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  header{
+    display:flex; align-items:center; gap:9px;
+    padding:14px 16px;
+    border-bottom:1px solid var(--line);
+    background:var(--surface);
+  }
+  header img{ width:22px; height:22px; border-radius:6px; }
+  header b{ font-size:13px; font-weight:700; }
+  header b span{ color:var(--vex-green); }
+  .status-dot{
+    margin-left:auto;
+    width:7px; height:7px; border-radius:50%;
+    background:#4a5266;
+  }
+  .status-dot.on{ background:var(--vex-green); box-shadow:0 0 8px var(--vex-green); }
+
+  main{ padding:14px 16px 16px; display:grid; gap:12px; }
+
+  .timer{
+    display:flex; align-items:baseline; gap:10px;
+    font-variant-numeric:tabular-nums;
+  }
+  .timer .t{ font-size:32px; font-weight:700; letter-spacing:-.03em; line-height:1; }
+  .timer .l{ font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+
+  .controls{ display:flex; gap:6px; }
+  button{
+    font:inherit; cursor:pointer;
+    border:0; border-radius:8px;
+    font-weight:600; font-size:12.5px;
+    padding:9px 12px;
+    transition:background .15s, color .15s, transform .08s;
+  }
+  button:active{ transform:scale(.97); }
+  .btn-main{
+    flex:1;
+    background:var(--vex-green); color:#0a0c10;
+  }
+  .btn-sec{
+    background:var(--surface); color:var(--muted);
+    border:1px solid var(--line);
+  }
+  .btn-sec:hover{ color:var(--text); }
+
+  section{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px;
+    display:grid; gap:9px;
+  }
+  section h3{
+    margin:0; font-size:11px; font-weight:700;
+    letter-spacing:.12em; text-transform:uppercase; color:var(--muted);
+  }
+  label{
+    display:flex; align-items:center; justify-content:space-between;
+    font-size:12px; color:var(--muted); gap:10px;
+  }
+  input[type="text"], input[type="number"]{
+    width:150px;
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:7px;
+    color:var(--text);
+    font:inherit; font-size:12px;
+    padding:7px 9px;
+  }
+  input:focus{ outline:2px solid var(--vex-green); outline-offset:0; }
+  .row-actions{ display:flex; gap:6px; margin-top:2px; }
+  .row-actions button{ flex:1; padding:8px; font-size:12px; }
+  .hint{ font-size:11px; color:var(--muted); opacity:.85; margin:2px 0 0; line-height:1.5; }
+  .blocked-list{ display:grid; gap:5px; }
+  .blocked-item{
+    display:flex; align-items:center; gap:8px;
+    font-size:12px;
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:7px;
+    padding:6px 9px;
+  }
+  .blocked-item span{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .blocked-item button{
+    background:transparent; color:var(--muted);
+    padding:0 4px; font-size:16px; line-height:1;
+  }
+  .blocked-item button:hover{ color:var(--vex-white, #fff); }
+</style>
+</head>
+<body>
+
+<header>
+  <img src="logo.png" alt="" onerror="this.style.display='none'">
+  <b>Vexor<span>Focus</span></b>
+  <span class="status-dot" id="dot"></span>
+</header>
+
+<main>
+  <div class="timer">
+    <div class="t" id="time">--:--</div>
+    <div class="l" id="label">Not paired</div>
+  </div>
+
+  <div class="controls">
+    <button class="btn-main" id="toggle">Start</button>
+    <button class="btn-sec" id="reset">Reset</button>
+    <button class="btn-sec" id="skip">Skip</button>
+  </div>
+
+  <section>
+    <h3>Pairing</h3>
+    <label>Port <input type="number" id="port" placeholder="47800"></label>
+    <label>Token <input type="text" id="token" placeholder="paste from dashboard"></label>
+    <div class="row-actions">
+      <button class="btn-main" id="pair">Pair</button>
+      <button class="btn-sec" id="unpair">Unpair</button>
+    </div>
+    <p class="hint">Open Vexor Focus → Settings → Browser extension to copy these.</p>
+  </section>
+
+  <section>
+    <h3>Blocklist</h3>
+    <div class="blocked-list" id="blocked"></div>
+    <div class="row-actions">
+      <input type="text" id="newBlock" placeholder="youtube.com" style="flex:1; width:auto">
+      <button class="btn-sec" id="addBlock">Add</button>
+    </div>
+    <p class="hint">These sites are blocked while a focus session is running.</p>
+  </section>
+</main>
+
+<script src="popup.js"></script>
+</body>
+</html>

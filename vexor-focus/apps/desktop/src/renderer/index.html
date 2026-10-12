@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Vexor Focus</title>
+<link rel="icon" href="../../team-vexor.png">
+<style>
+  :root{
+    --vex-green:#39ff14;
+    --vex-blue:#00bfff;
+    --vex-white:#ffffff;
+    --bg:#0a0c10;
+    --surface:#14171e;
+    --surface-2:#1c2029;
+    --line:rgba(255,255,255,.08);
+    --text:#e9ecf3;
+    --muted:#7d879c;
+    --accent:var(--vex-green);
+    --track:rgba(255,255,255,.06);
+  }
+  [data-mode="short"]{ --accent:var(--vex-blue); }
+  [data-mode="long"] { --accent:var(--vex-white); }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font:14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  button{ font:inherit; cursor:pointer; }
+  input, select{ font:inherit; }
+
+  /* ---------- shell ---------- */
+  .shell{
+    display:grid;
+    grid-template-columns:220px 1fr;
+    height:100vh;
+  }
+  .sidebar{
+    background:var(--surface);
+    border-right:1px solid var(--line);
+    display:flex; flex-direction:column;
+    padding:18px 14px;
+    gap:22px;
+  }
+  .brand{
+    display:flex; align-items:center; gap:10px;
+    padding:4px 6px 12px;
+    border-bottom:1px solid var(--line);
+  }
+  .brand img{ width:28px; height:28px; border-radius:7px; }
+  .brand-name{
+    font-weight:700; letter-spacing:-.01em;
+    font-size:14px;
+  }
+  .brand-name span{ color:var(--vex-green); }
+
+  .nav{ display:grid; gap:3px; }
+  .nav button{
+    display:flex; align-items:center; gap:10px;
+    background:transparent; border:0;
+    color:var(--muted);
+    text-align:left;
+    padding:10px 12px;
+    border-radius:9px;
+    font-weight:600; font-size:13.5px;
+    transition:background .15s, color .15s;
+  }
+  .nav button:hover{ background:var(--surface-2); color:var(--text); }
+  .nav button.active{
+    background:var(--surface-2);
+    color:var(--vex-green);
+    box-shadow:inset 2px 0 0 var(--vex-green);
+  }
+  .nav svg{ width:16px; height:16px; flex:0 0 auto; opacity:.9; }
+
+  .sidebar-foot{
+    margin-top:auto;
+    display:grid; gap:8px;
+    padding:10px 6px 4px;
+    border-top:1px solid var(--line);
+    font-size:11.5px;
+    color:var(--muted);
+  }
+  .status{
+    display:flex; align-items:center; gap:7px;
+  }
+  .status-dot{
+    width:7px; height:7px; border-radius:50%;
+    background:#4a5266;
+    transition:background .2s, box-shadow .2s;
+  }
+  .status.paired .status-dot{
+    background:var(--vex-green);
+    box-shadow:0 0 8px var(--vex-green);
+  }
+  .status.error .status-dot{ background:#ff4d6d; }
+
+  main{ overflow-y:auto; padding:34px 40px 40px; }
+  .view{ display:none; }
+  .view.active{ display:block; animation:fade .18s ease-out; }
+  @keyframes fade{ from{ opacity:0; transform:translateY(4px); } }
+
+  h1{
+    margin:0 0 22px;
+    font-size:20px; font-weight:700; letter-spacing:-.015em;
+  }
+  h2{
+    margin:0 0 14px;
+    font-size:12px; font-weight:700;
+    letter-spacing:.14em; text-transform:uppercase;
+    color:var(--muted);
+  }
+
+  /* ---------- timer view ---------- */
+  .timer-grid{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 300px;
+    gap:36px;
+    align-items:start;
+    max-width:1000px;
+  }
+  .timer-card{
+    display:grid; gap:26px; justify-items:center;
+    padding:38px 30px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:22px;
+    position:relative;
+    overflow:hidden;
+  }
+  .timer-card::before{
+    content:"";
+    position:absolute; inset:0;
+    background:radial-gradient(65% 50% at 50% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%);
+    pointer-events:none;
+  }
+  .tabs{
+    display:flex; gap:4px; width:100%; max-width:340px;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:999px; padding:4px;
+    position:relative; z-index:1;
+  }
+  .tabs button{
+    flex:1; border:0; background:transparent;
+    color:var(--muted);
+    font-size:12px; font-weight:600;
+    padding:8px 6px; border-radius:999px;
+    transition:background .2s, color .2s;
+  }
+  .tabs button:hover{ color:var(--text); }
+  .tabs button.active{ background:var(--accent); color:#0a0c10; }
+
+  .timer{ position:relative; display:grid; place-items:center; }
+  .ring{ width:min(58vw, 300px); height:auto; transform:rotate(-90deg); }
+  .ring circle{ fill:none; stroke-width:8; }
+  .ring .track{ stroke:var(--track); }
+  .ring .progress{
+    stroke:var(--accent); stroke-linecap:round;
+    transition:stroke .3s ease;
+  }
+  .readout{
+    position:absolute; inset:0;
+    display:grid; place-content:center; gap:6px;
+    text-align:center;
+  }
+  .time{
+    font-size:64px; font-weight:700;
+    letter-spacing:-.035em; line-height:1;
+    font-variant-numeric:tabular-nums;
+  }
+  .mode-label{
+    font-size:11px; font-weight:700;
+    letter-spacing:.16em; text-transform:uppercase;
+    color:var(--muted);
+  }
+  body.running .mode-label{ color:var(--accent); }
+
+  .controls{ display:flex; gap:10px; align-items:center; position:relative; z-index:1; }
+  .btn{
+    border:0; border-radius:999px;
+    font-weight:600;
+    transition:transform .1s, background .2s, color .2s;
+  }
+  .btn:active{ transform:scale(.97); }
+  .btn.primary{
+    background:var(--accent); color:#0a0c10;
+    padding:14px 32px; font-size:15px; min-width:130px;
+  }
+  .btn.ghost{
+    background:var(--surface-2); color:var(--muted);
+    border:1px solid var(--line);
+    padding:11px 18px; font-size:13px;
+  }
+  .btn.ghost:hover{ color:var(--text); }
+
+  .dots{ display:flex; gap:6px; position:relative; z-index:1; }
+  .dot{
+    width:7px; height:7px; border-radius:50%;
+    background:var(--track);
+    transition:background .25s, transform .25s;
+  }
+  .dot.on{ background:var(--accent); transform:scale(1.2); }
+
+  .side-stack{ display:grid; gap:14px; }
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:18px 18px 16px;
+  }
+  .card h3{
+    margin:0 0 4px;
+    font-size:13px; font-weight:600;
+    color:var(--muted);
+    letter-spacing:.02em;
+  }
+  .card .big{
+    font-size:26px; font-weight:700;
+    letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums;
+  }
+  .card .sub{ font-size:12px; color:var(--muted); margin-top:2px; }
+
+  /* ---------- stats view ---------- */
+  .stats-head{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px; margin-bottom:20px; flex-wrap:wrap;
+  }
+  .range{
+    display:flex; gap:3px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:999px; padding:4px;
+  }
+  .range button{
+    border:0; background:transparent; color:var(--muted);
+    font-size:12.5px; font-weight:600;
+    padding:7px 14px; border-radius:999px;
+  }
+  .range button:hover{ color:var(--text); }
+  .range button.active{ background:var(--vex-green); color:#0a0c10; }
+
+  .summary{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:14px;
+    margin-bottom:22px;
+  }
+  .stat{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px 18px;
+  }
+  .stat .label{
+    font-size:11px; font-weight:700;
+    letter-spacing:.12em; text-transform:uppercase;
+    color:var(--muted);
+  }
+  .stat .value{
+    font-size:22px; font-weight:700;
+    letter-spacing:-.02em; margin-top:6px;
+    font-variant-numeric:tabular-nums;
+  }
+  .stat .value.green{ color:var(--vex-green); }
+  .stat .value.blue{ color:var(--vex-blue); }
+  .stat .value.white{ color:var(--vex-white); }
+
+  .timeline-wrap{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:20px 20px 14px;
+    margin-bottom:22px;
+  }
+  .timeline{
+    position:relative;
+    height:52px;
+    background:var(--surface-2);
+    border-radius:8px;
+    overflow:hidden;
+  }
+  .seg{
+    position:absolute;
+    top:0; bottom:0;
+    border-radius:3px;
+    transition:opacity .12s;
+    cursor:default;
+  }
+  .seg:hover{ opacity:.82; }
+  .seg.productive  { background:var(--vex-green); }
+  .seg.neutral     { background:var(--vex-blue); }
+  .seg.distracting { background:var(--vex-white); }
+  .seg.idle        { background:#2a2f3b; }
+
+  .hour-axis{
+    position:relative;
+    height:18px;
+    margin-top:6px;
+    font-size:10px;
+    color:var(--muted);
+  }
+  .hour-axis span{
+    position:absolute;
+    transform:translateX(-50%);
+    font-variant-numeric:tabular-nums;
+  }
+  .hour-axis span:first-child{ transform:none; }
+  .hour-axis span:last-child{ transform:translateX(-100%); }
+
+  .legend{
+    display:flex; gap:16px; margin-top:12px;
+    font-size:11.5px; color:var(--muted);
+  }
+  .legend i{
+    display:inline-block; width:9px; height:9px;
+    border-radius:2px; margin-right:6px;
+    vertical-align:middle;
+  }
+
+  .top-list{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:6px 0;
+    overflow:hidden;
+  }
+  .row{
+    display:grid;
+    grid-template-columns:minmax(0, 1fr) auto 90px;
+    gap:14px;
+    align-items:center;
+    padding:11px 20px;
+    border-bottom:1px solid var(--line);
+    font-size:13.5px;
+  }
+  .row:last-child{ border-bottom:0; }
+  .row .name{
+    display:flex; align-items:center; gap:9px;
+    min-width:0;
+  }
+  .row .name b{
+    font-weight:600;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .row .name small{
+    color:var(--muted);
+    font-size:11.5px;
+  }
+  .row .bar{
+    width:90px; height:5px; border-radius:3px;
+    background:var(--surface-2);
+    overflow:hidden;
+  }
+  .row .bar i{ display:block; height:100%; }
+  .row .bar i.productive  { background:var(--vex-green); }
+  .row .bar i.neutral     { background:var(--vex-blue); }
+  .row .bar i.distracting { background:var(--vex-white); }
+  .row .dur{
+    text-align:right;
+    font-variant-numeric:tabular-nums;
+    color:var(--muted);
+    font-size:12.5px;
+  }
+  .empty{
+    padding:30px 20px; text-align:center;
+    color:var(--muted); font-size:13px;
+  }
+
+  /* ---------- settings ---------- */
+  .settings-grid{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0,1fr));
+    gap:18px;
+    max-width:840px;
+  }
+  .panel{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:20px;
+    display:grid; gap:14px;
+  }
+  .panel.full{ grid-column:1 / -1; }
+  .field{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:12px; font-size:13.5px; color:var(--muted);
+  }
+  .field input[type="number"], .field input[type="text"]{
+    width:100px;
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:9px;
+    color:var(--text);
+    padding:8px 10px;
+    text-align:center;
+    font-variant-numeric:tabular-nums;
+  }
+  .field input:focus{ outline:2px solid var(--vex-green); outline-offset:0; }
+  .field input[type="checkbox"]{
+    width:18px; height:18px; accent-color:var(--vex-green); cursor:pointer;
+  }
+
+  .rules{
+    display:grid; gap:8px;
+    max-height:320px; overflow-y:auto;
+    padding-right:4px;
+  }
+  .rule{
+    display:grid;
+    grid-template-columns:1fr 130px 32px;
+    gap:8px; align-items:center;
+  }
+  .rule input, .rule select{
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:8px;
+    color:var(--text);
+    padding:7px 10px;
+    font-size:13px;
+  }
+  .rule select{ padding:7px 8px; }
+  .rule button{
+    background:transparent; border:0;
+    color:var(--muted);
+    font-size:18px; line-height:1;
+    padding:4px;
+    border-radius:6px;
+  }
+  .rule button:hover{ color:var(--vex-white); background:var(--surface-2); }
+
+  .bridge-box{
+    display:grid; gap:10px;
+    font-family:ui-monospace, "SF Mono", Menlo, monospace;
+    font-size:12.5px;
+  }
+  .bridge-row{
+    display:grid;
+    grid-template-columns:64px 1fr;
+    gap:12px; align-items:center;
+  }
+  .bridge-row span{ color:var(--muted); }
+  .bridge-row code{
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:7px 10px;
+    color:var(--vex-green);
+    overflow:hidden; text-overflow:ellipsis;
+    user-select:all;
+  }
+  .hint{ font-size:11.5px; color:var(--muted); opacity:.85; margin:0; line-height:1.55; }
+  .toast{
+    position:fixed; bottom:22px; right:22px;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-left:3px solid var(--vex-green);
+    border-radius:10px;
+    padding:12px 18px;
+    font-size:13px;
+    box-shadow:0 12px 32px rgba(0,0,0,.5);
+    transform:translateY(14px); opacity:0;
+    transition:transform .2s, opacity .2s;
+    pointer-events:none;
+  }
+  .toast.show{ transform:translateY(0); opacity:1; }
+</style>
+</head>
+<body data-mode="work">
+
+<div class="shell">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <img src="../../team-vexor.png" alt="" onerror="this.style.display='none'">
+      <div class="brand-name">Vexor<span>Focus</span></div>
+    </div>
+
+    <nav class="nav">
+      <button data-nav="timer" class="active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/>
+        </svg> Timer
+      </button>
+      <button data-nav="stats">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 3v18h18M7 15l4-4 3 3 5-6"/>
+        </svg> Stats
+      </button>
+      <button data-nav="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+        </svg> Settings
+      </button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="status" id="bridgeStatus">
+        <span class="status-dot"></span>
+        <span id="bridgeText">Extension not paired</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+
+    <!-- ---------- TIMER ---------- -->
+    <section class="view active" data-view="timer">
+      <h1>Timer</h1>
+      <div class="timer-grid">
+
+        <div class="timer-card">
+          <div class="tabs" role="tablist">
+            <button data-mode="work"  class="active">Focus</button>
+            <button data-mode="short">Short Break</button>
+            <button data-mode="long">Long Break</button>
+          </div>
+
+          <div class="timer">
+            <svg class="ring" viewBox="0 0 260 260" aria-hidden="true">
+              <circle class="track" cx="130" cy="130" r="118"/>
+              <circle class="progress" id="progress" cx="130" cy="130" r="118"/>
+            </svg>
+            <div class="readout">
+              <div class="time" id="time" role="timer">25:00</div>
+              <div class="mode-label" id="modeLabel">Focus</div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <button class="btn ghost" id="resetBtn" title="Reset">Reset</button>
+            <button class="btn primary" id="toggleBtn">Start</button>
+            <button class="btn ghost" id="skipBtn" title="Skip">Skip</button>
+          </div>
+
+          <div class="dots" id="dots"></div>
+        </div>
+
+        <div class="side-stack">
+          <div class="card">
+            <h3>Today</h3>
+            <div class="big" id="todayFocus">0m</div>
+            <div class="sub" id="todaySub">No focus sessions yet</div>
+          </div>
+          <div class="card">
+            <h3>Top app / site right now</h3>
+            <div class="big" id="currentApp" style="font-size:18px">—</div>
+            <div class="sub" id="currentSub">Tracking paused or idle</div>
+          </div>
+          <div class="card">
+            <h3>Long break in</h3>
+            <div class="big" id="longBreakIn">4 rounds</div>
+            <div class="sub">Keep going — it gets easier.</div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ---------- STATS ---------- -->
+    <section class="view" data-view="stats">
+      <div class="stats-head">
+        <h1 style="margin:0">Activity</h1>
+        <div class="range" id="range">
+          <button data-range="today" class="active">Today</button>
+          <button data-range="week">7 days</button>
+          <button data-range="month">30 days</button>
+        </div>
+      </div>
+
+      <div class="summary">
+        <div class="stat">
+          <div class="label">Total tracked</div>
+          <div class="value" id="sumTotal">—</div>
+        </div>
+        <div class="stat">
+          <div class="label">Productive</div>
+          <div class="value green" id="sumProductive">—</div>
+        </div>
+        <div class="stat">
+          <div class="label">Distracting</div>
+          <div class="value white" id="sumDistracting">—</div>
+        </div>
+      </div>
+
+      <h2>Timeline</h2>
+      <div class="timeline-wrap">
+        <div class="timeline" id="timeline"></div>
+        <div class="hour-axis" id="hourAxis"></div>
+        <div class="legend">
+          <span><i style="background:var(--vex-green)"></i>Productive</span>
+          <span><i style="background:var(--vex-blue)"></i>Neutral</span>
+          <span><i style="background:var(--vex-white)"></i>Distracting</span>
+          <span><i style="background:#2a2f3b"></i>Idle / paused</span>
+        </div>
+      </div>
+
+      <h2>Top activity</h2>
+      <div class="top-list" id="topList">
+        <div class="empty">No activity recorded in this range.</div>
+      </div>
+    </section>
+
+    <!-- ---------- SETTINGS ---------- -->
+    <section class="view" data-view="settings">
+      <h1>Settings</h1>
+      <div class="settings-grid">
+
+        <div class="panel">
+          <h2 style="margin:0">Durations</h2>
+          <label class="field"><span>Focus (min)</span>
+            <input type="number" id="s-work" min="1" max="180"></label>
+          <label class="field"><span>Short break (min)</span>
+            <input type="number" id="s-short" min="1" max="60"></label>
+          <label class="field"><span>Long break (min)</span>
+            <input type="number" id="s-long" min="1" max="90"></label>
+          <label class="field"><span>Rounds per cycle</span>
+            <input type="number" id="s-interval" min="1" max="12"></label>
+        </div>
+
+        <div class="panel">
+          <h2 style="margin:0">Behavior</h2>
+          <label class="field"><span>Auto-start next</span>
+            <input type="checkbox" id="s-autoStart"></label>
+          <label class="field"><span>Sound</span>
+            <input type="checkbox" id="s-sound"></label>
+          <label class="field"><span>Notifications</span>
+            <input type="checkbox" id="s-notify"></label>
+          <label class="field"><span>Track window titles</span>
+            <input type="checkbox" id="s-titles" checked></label>
+          <p class="hint">Window titles are stored locally on this machine only. Disable to log only the app name.</p>
+        </div>
+
+        <div class="panel full">
+          <h2 style="margin:0">Category rules</h2>
+          <p class="hint">Match by app name (e.g. <code>chrome.exe</code>) or domain (e.g. <code>youtube.com</code>). Applied instantly to all history.</p>
+          <div class="rules" id="rules"></div>
+          <div class="rule" style="grid-template-columns:1fr 130px auto; margin-top:4px">
+            <input type="text" id="newMatch" placeholder="app or domain">
+            <select id="newCategory">
+              <option value="productive">Productive</option>
+              <option value="neutral" selected>Neutral</option>
+              <option value="distracting">Distracting</option>
+            </select>
+            <button class="btn ghost" id="addRule" style="padding:7px 14px; font-size:12.5px">Add</button>
+          </div>
+        </div>
+
+        <div class="panel full">
+          <h2 style="margin:0">Browser extension</h2>
+          <div class="bridge-box">
+            <div class="bridge-row"><span>Port</span><code id="bridgePort">—</code></div>
+            <div class="bridge-row"><span>Token</span><code id="bridgeToken">—</code></div>
+          </div>
+          <p class="hint">Open the Vexor Focus extension, click <strong>Pair</strong>, and paste these values. Only connections from <code>127.0.0.1</code> are accepted.</p>
+        </div>
+
+        <div class="panel full">
+          <h2 style="margin:0">Privacy</h2>
+          <p class="hint">
+            All data stays on this machine in <code>%APPDATA%\TeamVexor\vexor.db</code>. No telemetry, no accounts, no cloud sync.
+            You can delete everything at any time.
+          </p>
+          <div style="display:flex; gap:10px; margin-top:4px">
+            <button class="btn ghost" id="exportBtn" style="padding:9px 16px">Export CSV</button>
+            <button class="btn ghost" id="wipeBtn" style="padding:9px 16px; color:#ff4d6d">Delete all data</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ============================================================
+     CATEGORIES
+     ============================================================ */
+
+  const DEFAULT_RULES = [
+    // productive
+    { match:'github.com',          category:'productive' },
+    { match:'stackoverflow.com',   category:'productive' },
+    { match:'docs.google.com',     category:'productive' },
+    { match:'notion.so',           category:'productive' },
+    { match:'figma.com',           category:'productive' },
+    { match:'linear.app',          category:'productive' },
+    { match:'code.visualstudio.com', category:'productive' },
+    { match:'Code.exe',            category:'productive' },
+    { match:'WindowsTerminal.exe', category:'productive' },
+    { match:'devenv.exe',          category:'productive' },
+    { match:'idea64.exe',          category:'productive' },
+    // distracting
+    { match:'youtube.com',         category:'distracting' },
+    { match:'twitter.com',         category:'distracting' },
+    { match:'x.com',               category:'distracting' },
+    { match:'reddit.com',          category:'distracting' },
+    { match:'tiktok.com',          category:'distracting' },
+    { match:'instagram.com',       category:'distracting' },
+    { match:'facebook.com',        category:'distracting' },
+    { match:'netflix.com',         category:'distracting' },
+    { match:'twitch.tv',           category:'distracting' },
+  ];
+
+  let rules = [];
+
+  function categorize(sample) {
+    const hay = (sample.domain || sample.app || '').toLowerCase();
+    if (!hay) return 'neutral';
+    let best = null;
+    for (const r of rules) {
+      const m = r.match.toLowerCase();
+      if (hay === m || hay.endsWith('.' + m) || hay.includes(m)) {
+        if (!best || m.length > best.match.length) best = r;
+      }
+    }
+    return best ? best.category : 'neutral';
+  }
+
+  /* ============================================================
+     STATE
+     ============================================================ */
+
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => document.querySelectorAll(s);
+
+  const RING_R = 118;
+  const CIRC = 2 * Math.PI * RING_R;
+
+  let focus = {
+    mode:'work', running:false, remainingMs:25*60000, totalMs:25*60000,
+    roundsDone:0, interval:4, label:'Focus',
+  };
+  let settings = {};
+  let range = 'today';
+
+  /* ============================================================
+     NAV
+     ============================================================ */
+
+  $$('[data-nav]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      $$('[data-nav]').forEach((b) => b.classList.toggle('active', b === btn));
+      $$('.view').forEach((v) => v.classList.toggle('active', v.dataset.view === btn.dataset.nav));
+      if (btn.dataset.nav === 'stats') loadStats();
+      if (btn.dataset.nav === 'settings') loadSettings();
+    });
+  });
+
+  /* ============================================================
+     TIMER
+     ============================================================ */
+
+  const progressEl = $('#progress');
+  const timeEl     = $('#time');
+  const labelEl    = $('#modeLabel');
+  const toggleBtn  = $('#toggleBtn');
+
+  progressEl.setAttribute('stroke-dasharray', String(CIRC));
+
+  function paintTimer() {
+    const ms = focus.remainingMs;
+    const sec = Math.max(0, Math.ceil(ms / 1000));
+    const mm = String(Math.floor(sec / 60)).padStart(2, '0');
+    const ss = String(sec % 60).padStart(2, '0');
+
+    timeEl.textContent = `${mm}:${ss}`;
+    labelEl.textContent = focus.label;
+    toggleBtn.textContent = focus.running ? 'Pause' : 'Start';
+    document.body.classList.toggle('running', focus.running);
+    document.body.dataset.mode = focus.mode;
+
+    const frac = focus.totalMs > 0 ? ms / focus.totalMs : 0;
+    progressEl.style.strokeDashoffset = String(CIRC * (1 - frac));
+
+    document.title = focus.running
+      ? `${mm}:${ss} · ${focus.label} — Vexor Focus`
+      : 'Vexor Focus';
+
+    $$('.tabs button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.mode === focus.mode);
+    });
+  }
+
+  function paintDots() {
+    const n = focus.interval || 4;
+    const done = focus.roundsDone || 0;
+    const el = $('#dots');
+    el.innerHTML = '';
+    for (let i = 0; i < n; i++) {
+      const d = document.createElement('span');
+      d.className = 'dot' + (i < done ? ' on' : '');
+      el.appendChild(d);
+    }
+    const remaining = n - done;
+    $('#longBreakIn').textContent = remaining === 1
+      ? '1 round'
+      : `${remaining} rounds`;
+  }
+
+  function onState(next) {
+    focus = next;
+    paintTimer();
+    paintDots();
+  }
+
+  toggleBtn.addEventListener('click', async () => onState(await window.vexor.focus.toggle()));
+  $('#resetBtn').addEventListener('click', async () => onState(await window.vexor.focus.reset()));
+  $('#skipBtn').addEventListener('click', async () => onState(await window.vexor.focus.skip()));
+
+  $$('.tabs button').forEach((tab) => {
+    tab.addEventListener('click', async () => {
+      onState(await window.vexor.focus.setMode(tab.dataset.mode));
+    });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input, textarea, select')) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.code === 'Space') { e.preventDefault(); toggleBtn.click(); }
+    else if (e.key === 'r' || e.key === 'R') $('#resetBtn').click();
+    else if (e.key === 'n' || e.key === 'N') $('#skipBtn').click();
+  });
+
+  window.vexor.focus.onState(onState);
+  window.vexor.focus.get().then(onState);
+
+  /* ============================================================
+     STATS
+     ============================================================ */
+
+  function rangeBounds(key) {
+    const now = new Date();
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+
+    let days = 1;
+    if (key === 'week') days = 7;
+    if (key === 'month') days = 30;
+
+    if (days > 1) start.setDate(start.getDate() - (days - 1));
+    const end = new Date(start);
+    end.setDate(end.getDate() + days);
+
+    return { from: start.getTime(), to: end.getTime(), start, days };
+  }
+
+  function fmtDuration(ms) {
+    const s = Math.round(ms / 1000);
+    if (s < 60) return `${s}s`;
+    const m = Math.round(s / 60);
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    const rm = m % 60;
+    return rm ? `${h}h ${rm}m` : `${h}h`;
+  }
+
+  async function loadStats() {
+    const { from, to, start, days } = rangeBounds(range);
+
+    const [rows, timeline] = await Promise.all([
+      window.vexor.stats.range({ from, to }),
+      window.vexor.stats.timeline({ from, to }),
+    ]);
+
+    let total = 0, productive = 0, distracting = 0, neutral = 0;
+    for (const r of rows) {
+      const cat = categorize(r);
+      total += r.ms;
+      if (cat === 'productive') productive += r.ms;
+      else if (cat === 'distracting') distracting += r.ms;
+      else neutral += r.ms;
+    }
+
+    $('#sumTotal').textContent      = fmtDuration(total);
+    $('#sumProductive').textContent = fmtDuration(productive);
+    $('#sumDistracting').textContent= fmtDuration(distracting);
+
+    renderTimeline(timeline, from, to, days);
+    renderTop(rows, total);
+
+    if (range === 'today') {
+      $('#todayFocus').textContent = fmtDuration(productive);
+      const sessions = timeline.filter((t) => t.focus_session_id).length;
+      $('#todaySub').textContent = sessions
+        ? `${sessions} focus session${sessions === 1 ? '' : 's'}`
+        : 'No focus sessions yet';
+    }
+  }
+
+  function renderTimeline(rows, from, to, days) {
+    const el = $('#timeline');
+    const axis = $('#hourAxis');
+    el.innerHTML = '';
+    axis.innerHTML = '';
+
+    if (!rows.length) {
+      el.innerHTML = '<div class="empty" style="padding:16px 0">No activity in range.</div>';
+      return;
+    }
+
+    if (days > 1) {
+      const dayMs = 24 * 60 * 60 * 1000;
+      const byDay = new Map();
+      for (const r of rows) {
+        const d = new Date(r.started_at);
+        d.setHours(0, 0, 0, 0);
+        const key = d.getTime();
+        if (!byDay.has(key)) byDay.set(key, []);
+        byDay.get(key).push(r);
+      }
+      const heights = 100 / days;
+      for (let i = 0; i < days; i++) {
+        const dayStart = from + i * dayMs;
+        const dayRows = byDay.get(dayStart) || [];
+        for (const r of dayRows) {
+          const left = ((r.started_at - dayStart) / dayMs) * 100;
+          const width = Math.max((r.duration_ms / dayMs) * 100, 0.15);
+          if (left < 0 || left > 100) continue;
+          const seg = document.createElement('div');
+          seg.className = `seg ${r.idle ? 'idle' : categorize(r)}`;
+          seg.style.left = left + '%';
+          seg.style.width = Math.min(width, 100 - left) + '%';
+          seg.style.top = (i * heights) + '%';
+          seg.style.height = heights + '%';
+          seg.title = `${new Date(r.started_at).toLocaleString()}\n${r.domain || r.app || 'unknown'}\n${fmtDuration(r.duration_ms)}`;
+          el.appendChild(seg);
+        }
+      }
+      return;
+    }
+
+    const dayMs = to - from;
+    for (const r of rows) {
+      const left = ((r.started_at - from) / dayMs) * 100;
+      const width = Math.max((r.duration_ms / dayMs) * 100, 0.15);
+      if (left < 0 || left > 100) continue;
+      const seg = document.createElement('div');
+      seg.className = `seg ${r.idle ? 'idle' : categorize(r)}`;
+      seg.style.left = left + '%';
+      seg.style.width = Math.min(width, 100 - left) + '%';
+      seg.title = `${new Date(r.started_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}\n${r.domain || r.app || 'unknown'}\n${fmtDuration(r.duration_ms)}`;
+      el.appendChild(seg);
+    }
+
+    for (let h = 0; h <= 24; h += 3) {
+      const s = document.createElement('span');
+      s.textContent = String(h).padStart(2, '0') + ':00';
+      s.style.left = (h / 24 * 100) + '%';
+      axis.appendChild(s);
+    }
+  }
+
+  function renderTop(rows, total) {
+    const el = $('#topList');
+    el.innerHTML = '';
+    if (!rows.length || total === 0) {
+      el.innerHTML = '<div class="empty">No activity recorded in this range.</div>';
+      return;
+    }
+
+    const groups = new Map();
+    for (const r of rows) {
+      const name = r.domain || r.app || 'unknown';
+      const g = groups.get(name) || { name, ms:0, visits:0, source:r.source };
+      g.ms += r.ms;
+      g.visits += r.visits;
+      groups.set(name, g);
+    }
+
+    const sorted = [...groups.values()].sort((a, b) => b.ms - a.ms).slice(0, 12);
+    const max = sorted[0].ms;
+
+    for (const g of sorted) {
+      const cat = categorize({ domain: g.name, app: g.name });
+      const pct = Math.max((g.ms / max) * 100, 2);
+
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = `
+        <div class="name">
+          <b>${escapeHtml(g.name)}</b>
+          <small>${g.source === 'extension' ? 'browser' : 'desktop'}</small>
+        </div>
+        <div class="bar"><i class="${cat}" style="width:${pct}%"></i></div>
+        <div class="dur">${fmtDuration(g.ms)}</div>
+      `;
+      el.appendChild(row);
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+
+  $('#range').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    range = btn.dataset.range;
+    $$('#range button').forEach((b) => b.classList.toggle('active', b === btn));
+    loadStats();
+  });
+
+  /* ============================================================
+     SETTINGS
+     ============================================================ */
+
+  const SETTING_FIELDS = {
+    work:      { el: () => $('#s-work'),      min:1, max:180 },
+    short:     { el: () => $('#s-short'),     min:1, max:60  },
+    long:      { el: () => $('#s-long'),      min:1, max:90  },
+    interval:  { el: () => $('#s-interval'),  min:1, max:12  },
+    autoStart: { el: () => $('#s-autoStart'), bool:true },
+    sound:     { el: () => $('#s-sound'),     bool:true },
+    notify:    { el: () => $('#s-notify'),    bool:true },
+    titles:    { el: () => $('#s-titles'),    bool:true, default:true },
+  };
+
+  async function loadSettings() {
+    settings = await window.vexor.settings.get();
+    for (const [key, f] of Object.entries(SETTING_FIELDS)) {
+      const el = f.el();
+      if (!el) continue;
+      const val = settings[key] ?? f.default ?? 0;
+      if (f.bool) el.checked = !!val;
+      else el.value = val;
+    }
+
+    const info = await window.vexor.bridge.info();
+    if (info && info.port) {
+      $('#bridgePort').textContent = String(info.port);
+      $('#bridgeToken').textContent = info.token.slice(0, 16) + '…';
+      $('#bridgeToken').title = info.token;
+      $('#bridgeToken').onclick = () => {
+        navigator.clipboard.writeText(info.token);
+        toast('Token copied');
+      };
+      $('#bridgePort').onclick = () => {
+        navigator.clipboard.writeText(String(info.port));
+        toast('Port copied');
+      };
+    } else {
+      $('#bridgePort').textContent = '—';
+      $('#bridgeToken').textContent = '—';
+      $('#bridgeToken').title = '';
+    }
+
+    const saved = await window.vexor.categories.get();
+    rules = saved.length ? saved.map((r) => ({
+      match: r.match, category: r.category,
+    })) : [...DEFAULT_RULES];
+    renderRules();
+  }
+
+  function renderRules() {
+    const el = $('#rules');
+    el.innerHTML = '';
+    rules.forEach((r, i) => {
+      const row = document.createElement('div');
+      row.className = 'rule';
+      row.innerHTML = `
+        <input type="text" value="${escapeHtml(r.match)}" data-i="${i}" data-k="match">
+        <select data-i="${i}" data-k="category">
+          <option value="productive">Productive</option>
+          <option value="neutral">Neutral</option>
+          <option value="distracting">Distracting</option>
+        </select>
+        <button data-i="${i}" title="Remove">×</button>
+      `;
+      row.querySelector('select').value = r.category;
+      el.appendChild(row);
+    });
+  }
+
+  $('#rules').addEventListener('input', (e) => {
+    const t = e.target;
+    if (!t.dataset.i) return;
+    const i = Number(t.dataset.i);
+    rules[i][t.dataset.k] = t.value;
+    saveRules();
+  });
+
+  $('#rules').addEventListener('click', (e) => {
+    if (e.target.tagName !== 'BUTTON') return;
+    rules.splice(Number(e.target.dataset.i), 1);
+    renderRules();
+    saveRules();
+  });
+
+  $('#addRule').addEventListener('click', () => {
+    const match = $('#newMatch').value.trim();
+    if (!match) return;
+    rules.push({ match, category: $('#newCategory').value });
+    $('#newMatch').value = '';
+    renderRules();
+    saveRules();
+  });
+
+  let saveRulesTimer = null;
+  function saveRules() {
+    clearTimeout(saveRulesTimer);
+    saveRulesTimer = setTimeout(() => {
+      window.vexor.categories.set(rules);
+      if (document.querySelector('[data-view="stats"]').classList.contains('active')) loadStats();
+    }, 300);
+  }
+
+  for (const [key, f] of Object.entries(SETTING_FIELDS)) {
+    const el = f.el();
+    if (!el) continue;
+    el.addEventListener('change', async () => {
+      let val;
+      if (f.bool) val = el.checked;
+      else {
+        val = Number(el.value);
+        if (!Number.isFinite(val)) val = f.min;
+        val = Math.min(f.max, Math.max(f.min, Math.round(val)));
+        el.value = val;
+      }
+      settings = await window.vexor.settings.set({ [key]: val });
+    });
+  }
+
+  $('#exportBtn').addEventListener('click', async () => {
+    const { from, to } = rangeBounds('month');
+    const rows = await window.vexor.stats.timeline({ from, to });
+    const header = 'started_at,source,app,domain,title,duration_ms,idle,category\n';
+    const body = rows.map((r) => [
+      new Date(r.started_at).toISOString(),
+      r.source, r.app || '', r.domain || '',
+      JSON.stringify(r.title || ''), r.duration_ms, r.idle,
+      r.idle ? 'idle' : categorize(r),
+    ].join(',')).join('\n');
+    const blob = new Blob([header + body], { type:'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `vexor-focus-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('Exported');
+  });
+
+  $('#wipeBtn').addEventListener('click', async () => {
+    if (!confirm('Delete all tracked activity and focus sessions? This cannot be undone.')) return;
+    await window.vexor.data.wipe();
+    toast('All data deleted');
+    if (document.querySelector('[data-view="stats"]').classList.contains('active')) loadStats();
+  });
+
+  /* ============================================================
+     BRIDGE STATUS
+     ============================================================ */
+
+  function setBridgeStatus(paired, text) {
+    const el = $('#bridgeStatus');
+    el.className = 'status' + (paired ? ' paired' : '');
+    $('#bridgeText').textContent = text;
+  }
+
+  window.vexor.bridge.onStatus(({ paired }) => {
+    setBridgeStatus(paired, paired ? 'Extension connected' : 'Extension not paired');
+  });
+  setBridgeStatus(false, 'Extension not paired');
+
+  /* ============================================================
+     TOAST
+     ============================================================ */
+
+  let toastTimer = null;
+  function toast(msg) {
+    const el = $('#toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+  }
+
+  /* ============================================================
+     BOOT
+     ============================================================ */
+
+  loadSettings();
+  (async () => {
+    const existing = await window.vexor.categories.get();
+    if (!existing.length) await window.vexor.categories.set(DEFAULT_RULES);
+  })();
+
+})();
+</script>
+</body>
+</html>
