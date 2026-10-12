@@ -24,25 +24,6 @@ Built by Team Vexor Studio.
 - Window titles are optional. Full URLs are never logged - only domains.
 - Nothing is captured while the app is paused, and there's a delete-all button.
 
-## Troubleshooting
-
-**App window opens but extension says "connecting…" forever**
-- Make sure only one copy of the app is running. Closing the window hides to
-  tray — check Task Manager for stray "Electron" or "Vexor Focus" processes.
-- Check `%APPDATA%\TeamVexor\bridge.json` — the port there should match what
-  the extension popup has.
-- In the extension's service worker console, clear stale config:
-  `chrome.storage.local.remove('bridge')`
-- The desktop terminal should always show
-  `[bridge] listening on 127.0.0.1:<port>` at startup. If it doesn't, the
-  port range is blocked by a ghost instance.
-
-**`Attempted to register a second handler for '<channel>'`**
-- You have a duplicate `ipcMain.handle(...)` in `main.js`. Remove one.
-
-**Stats tab shows "No handler registered"**
-- You're missing an `ipcMain.handle('stats:...')` in `wireIpc()`.
-
 ## Development
 ```bash
 pnpm install
