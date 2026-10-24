@@ -39,6 +39,20 @@ npm start
 
 Requires Node.js and a Windows build of `active-win` (native module).
 
+#### Build a `.exe`
+
+```bash
+cd apps/desktop
+npm install
+npm run build
+```
+
+Produces `dist/Vexor Focus 0.1.0.exe` — a portable Windows executable (no installer needed, no admin rights). Just double-click to run.
+
+#### Start on Windows login
+
+In **Settings**, toggle **Start on Windows login** to have the app launch automatically when you log into Windows. This uses Electron's built-in login-item support (writes to the Windows Startup registry). You can also toggle it programmatically; the setting is stored in the local database.
+
 ### Chrome extension
 
 1. Open `chrome://extensions` → enable Developer mode.
@@ -68,8 +82,9 @@ This project runs fully offline. The bridge is `127.0.0.1`-only. The extension's
 
 ## Built with
 
-- Electron
+- Electron (Windows desktop app)
 - Chrome Extension API (Manifest V3)
-- node-sqlite3-wasm
-- active-win
-- ws
+- node-sqlite3-wasm (local SQLite database)
+- active-win (foreground window tracking)
+- ws (local WebSocket bridge for extension pairing)
+- electron-builder (produces portable `.exe`)
