@@ -2,7 +2,7 @@ const { EventEmitter } = require('node:events');
 const { randomUUID } = require('node:crypto');
 const { db } = require('./db');
 
-const DEFAULTS = { work: 25, short: 5, long: 15, interval: 4, autoStart: true };
+const DEFAULTS = { work: 25, short: 5, long: 15, interval: 4, autoStart: true, startOnLogin: false };
 const LABELS = { work: 'Focus', short: 'Short Break', long: 'Long Break' };
 
 class Focus extends EventEmitter {
@@ -20,7 +20,7 @@ class Focus extends EventEmitter {
   }
 
   #loadSettings() {
-    const row = db.prepare(`SELECT value FROM meta WHERE key = 'settings'`).get();
+    const row = db().prepare(`SELECT value FROM meta WHERE key = 'settings'`).get();
     if (!row) return { ...DEFAULTS };
     try { return { ...DEFAULTS, ...JSON.parse(row.value) }; }
     catch { return { ...DEFAULTS }; }
@@ -28,7 +28,7 @@ class Focus extends EventEmitter {
 
   saveSettings(patch) {
     this.settings = { ...this.settings, ...patch };
-    db.prepare(`
+    db().prepare(`
       INSERT INTO meta (key, value) VALUES ('settings', ?)
       ON CONFLICT(key) DO UPDATE SET value = excluded.value
     `).run([JSON.stringify(this.settings)]);
@@ -72,7 +72,7 @@ class Focus extends EventEmitter {
 
     if (!this.sessionId) {
       this.sessionId = randomUUID();
-      db.prepare(`
+      db().prepare(`
         INSERT INTO focus_sessions (id, mode, planned_ms, started_at)
         VALUES (?, ?, ?, ?)
       `).run([this.sessionId, this.mode, this.totalMs, Date.now()]);
@@ -149,7 +149,7 @@ class Focus extends EventEmitter {
 
   #endSession(completed) {
     if (!this.sessionId) return;
-    db.prepare(`
+    db().prepare(`
       UPDATE focus_sessions SET ended_at = ?, completed = ? WHERE id = ?
     `).run([Date.now(), completed ? 1 : 0, this.sessionId]);
   }
