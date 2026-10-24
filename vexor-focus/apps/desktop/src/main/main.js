@@ -89,6 +89,8 @@ function wireIpc() {
     return focus.settings;
   });
 
+  ipcMain.handle('settings:login', () => app.getLoginItemSettings().openAtLogin);
+
   ipcMain.handle('bridge:info', () => {
     const cfg = readBridgeConfig();
     if (!cfg || !cfg.port) return { port: null, token: null };
@@ -96,27 +98,28 @@ function wireIpc() {
   });
 
   ipcMain.handle('categories:get', () =>
-    db.prepare(`SELECT match, category, productive FROM categories`).all()
+    db().prepare(`SELECT match, category, productive FROM categories`).all()
   );
 
   ipcMain.handle('categories:set', (_e, rows) => {
-    db.exec('BEGIN');
+    const d = db();
+    d.exec('BEGIN');
     try {
-      db.prepare('DELETE FROM categories').run();
-      const ins = db.prepare('INSERT INTO categories (match, category, productive) VALUES (?, ?, ?)');
+      d.prepare('DELETE FROM categories').run();
+      const ins = d.prepare('INSERT INTO categories (match, category, productive) VALUES (?, ?, ?)');
       for (const r of rows) {
         ins.run([r.match, r.category, r.category === 'productive' ? 1 : 0]);
       }
-      db.exec('COMMIT');
+      d.exec('COMMIT');
     } catch (err) {
-      db.exec('ROLLBACK');
+      d.exec('ROLLBACK');
       throw err;
     }
     return true;
   });
 
   ipcMain.handle('stats:range', (_e, { from, to }) => {
-    return db.prepare(`
+    return db().prepare(`
       SELECT source, app, domain, SUM(duration_ms) AS ms, COUNT(*) AS visits
       FROM activity
       WHERE started_at >= ? AND started_at < ?
@@ -126,7 +129,7 @@ function wireIpc() {
   });
 
   ipcMain.handle('stats:timeline', (_e, { from, to }) => {
-    return db.prepare(`
+    return db().prepare(`
       SELECT id, source, app, domain, title, started_at, duration_ms, idle, focus_session_id
       FROM activity
       WHERE started_at >= ? AND started_at < ? AND ended_at IS NOT NULL
@@ -135,7 +138,7 @@ function wireIpc() {
   });
 
   ipcMain.handle('data:wipe', () => {
-    db.exec(`
+    db().exec(`
       DELETE FROM activity;
       DELETE FROM focus_sessions;
       DELETE FROM categories;
@@ -172,6 +175,21 @@ app.whenReady().then(async () => {
   const { openDb } = require('./db');
   if (!openDb()) {
     console.error('[main] database failed to open — app may not track activity');
+  }
+  // Verify the getter returns a real DB instance
+  const d = db();
+  if (!d || typeof d.prepare !== 'function') {
+    console.error('[main] database getter returned invalid instance');
+  }
+
+  // Restore previous login-start setting
+  try {
+    const loggedIn = app.getLoginItemSettings().openAtLogin;
+    if (loggedIn) {
+      focus.saveSettings({ startOnLogin: true });
+    }
+  } catch (err) {
+    console.warn('[main] could not read login setting:', err.message);
   }
 
   createWindow();
@@ -225,8 +243,9 @@ app.on('before-quit', () => {
   tracker?.stop();
   bridge?.close();
   try {
-    const { db } = require('./db');
-    if (db && db.isOpen) db.close();
+    const { db, openDb } = require('./db');
+    const current = db() || openDb();
+    if (current && current.isOpen) current.close();
   } catch {}
 });
 
