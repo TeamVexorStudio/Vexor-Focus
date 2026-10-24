@@ -9,7 +9,18 @@ const CONFIG_DIR = path.join(
 );
 fs.mkdirSync(CONFIG_DIR, { recursive: true });
 
-const db = new Database(path.join(CONFIG_DIR, 'vexor.db'));
+const DB_PATH = path.join(CONFIG_DIR, 'vexor.db');
+
+// Remove stale lock files/folders that can block startup after a crash
+function cleanLockFiles() {
+  for (const name of ['vexor.db-lock', 'vexor.db.lock', 'vexor.db-wal', 'vexor.db-shm']) {
+    try { fs.rmSync(path.join(CONFIG_DIR, name), { recursive: true, force: true }); } catch {}
+  }
+}
+
+cleanLockFiles();
+
+const db = new Database(DB_PATH);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS activity (
@@ -44,4 +55,4 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 `);
 
-module.exports = { db, CONFIG_DIR };
+module.exports = { db, CONFIG_DIR, DB_PATH, cleanLockFiles };
