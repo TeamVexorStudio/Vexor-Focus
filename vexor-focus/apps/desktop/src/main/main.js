@@ -1,229 +1,149 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage } = require('electron');
-const path = require('node:path');
+const { powerMonitor } = require('electron');
 const { db } = require('./db');
-const { startTracker } = require('./tracker');
-const { startBridge, readBridgeConfig } = require('./bridge');
-const { Focus } = require('./focus');
 
-app.setAppUserModelId('studio.teamvexor.focus');
-app.isQuitting = false;
+const POLL_MS = 1000;
+const IDLE_AFTER_SEC = 60;
 
-const focus = new Focus();
-let win = null;
-let tray = null;
-let tracker = null;
-let bridge = null;
+let insertRow, closeRow, touchRow;
+let lastPrepare = 0;
 
-function createWindow() {
-  win = new BrowserWindow({
-    width: 1040,
-    height: 720,
-    minWidth: 860,
-    minHeight: 560,
-    backgroundColor: '#0a0c10',
-    title: 'Vexor Focus',
-    icon: path.join(__dirname, '../../team-vexor.png'),
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  });
-
-  win.loadFile(path.join(__dirname, '../renderer/index.html'));
-
-  win.on('close', (e) => {
-    if (!app.isQuitting) { e.preventDefault(); win.hide(); }
-  });
-}
-
-function createTray() {
-  const iconPath = path.join(__dirname, '../../team-vexor.png');
-  let icon = nativeImage.createFromPath(iconPath);
-  if (icon.isEmpty()) icon = nativeImage.createEmpty();
-
-  tray = new Tray(icon.resize({ width: 16, height: 16 }));
-  tray.setToolTip('Vexor Focus');
-  tray.on('click', () => {
-    if (!win || win.isDestroyed()) return;
-    win.isVisible() ? win.hide() : win.show();
-  });
-
-  focus.on('change', (state) => {
-    const mins = Math.ceil(state.remainingMs / 60000);
-    tray.setToolTip(`Vexor Focus — ${state.label}${state.running ? ` (${mins}m)` : ''}`);
-    tray.setContextMenu(Menu.buildFromTemplate([
-      { label: `${state.label}${state.running ? ` — ${mins}m left` : ''}`, enabled: false },
-      { type: 'separator' },
-      { label: state.running ? 'Pause' : 'Start', click: () => focus.toggle() },
-      { label: 'Reset', click: () => focus.reset() },
-      { label: 'Skip', click: () => focus.skip() },
-      { type: 'separator' },
-      { label: 'Open Dashboard', click: () => { win?.show(); win?.focus(); } },
-      { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } },
-    ]));
-    bridge?.broadcast({ type: 'focus', focus: state });
-    if (win && !win.isDestroyed()) {
-      try { win.webContents.send('focus:state', state); } catch {}
-    }
-  });
-}
-
-function wireIpc() {
-  ipcMain.handle('focus:get', () => focus.getState());
-  ipcMain.handle('focus:toggle', () => { focus.toggle(); return focus.getState(); });
-  ipcMain.handle('focus:reset', () => { focus.reset(); return focus.getState(); });
-  ipcMain.handle('focus:skip', () => { focus.skip(); return focus.getState(); });
-  ipcMain.handle('focus:set-mode', (_e, mode) => {
-    focus.setMode(mode);
-    return focus.getState();
-  });
-
-  ipcMain.handle('settings:get', () => focus.settings);
-  ipcMain.handle('settings:set', (_e, patch) => {
-    focus.saveSettings(patch);
-    return focus.settings;
-  });
-
-  ipcMain.handle('bridge:info', () => {
-    const cfg = readBridgeConfig();
-    if (!cfg || !cfg.port) return { port: null, token: null };
-    return { port: cfg.port, token: cfg.token };
-  });
-
-  ipcMain.handle('categories:get', () =>
-    db.prepare(`SELECT match, category, productive FROM categories`).all()
-  );
-
-  ipcMain.handle('categories:set', (_e, rows) => {
-    db.exec('BEGIN');
-    try {
-      db.prepare('DELETE FROM categories').run();
-      const ins = db.prepare('INSERT INTO categories (match, category, productive) VALUES (?, ?, ?)');
-      for (const r of rows) {
-        ins.run([r.match, r.category, r.category === 'productive' ? 1 : 0]);
-      }
-      db.exec('COMMIT');
-    } catch (err) {
-      db.exec('ROLLBACK');
-      throw err;
-    }
-    return true;
-  });
-
-  ipcMain.handle('stats:range', (_e, { from, to }) => {
-    return db.prepare(`
-      SELECT source, app, domain, SUM(duration_ms) AS ms, COUNT(*) AS visits
-      FROM activity
-      WHERE started_at >= ? AND started_at < ?
-      GROUP BY source, app, domain
-      ORDER BY ms DESC
-    `).all([from, to]);
-  });
-
-  ipcMain.handle('stats:timeline', (_e, { from, to }) => {
-    return db.prepare(`
-      SELECT id, source, app, domain, title, started_at, duration_ms, idle, focus_session_id
-      FROM activity
-      WHERE started_at >= ? AND started_at < ? AND ended_at IS NOT NULL
-      ORDER BY started_at
-    `).all([from, to]);
-  });
-
-  ipcMain.handle('data:wipe', () => {
-    db.exec(`
-      DELETE FROM activity;
-      DELETE FROM focus_sessions;
-      DELETE FROM categories;
+function ensurePrepared() {
+  // Re-prepare statements if the DB was reopened (e.g. after a crash recovery)
+  const now = Date.now();
+  if (insertRow && closeRow && touchRow && now - lastPrepare < 30000) return;
+  try {
+    insertRow = db.prepare(`
+      INSERT INTO activity (source, app, domain, title, started_at, focus_session_id)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
-    return true;
-  });
-
-  ipcMain.on('quit-app', () => {
-    app.isQuitting = true;
-    app.quit();
-  });
+    closeRow = db.prepare(`
+      UPDATE activity SET ended_at = ?, duration_ms = ?, idle = ? WHERE id = ?
+    `);
+    touchRow = db.prepare(`
+      UPDATE activity SET duration_ms = ? WHERE id = ?
+    `);
+    lastPrepare = now;
+  } catch (err) {
+    console.error('[tracker] failed to prepare statements:', err.message);
+  }
 }
 
-app.whenReady().then(async () => {
-  // Repair corrupted bridge.json if present (db.js cleans lock files on open)
-  try {
-    const { CONFIG_DIR } = require('./db');
-    const bridgePath = path.join(CONFIG_DIR, 'bridge.json');
+// Initial prepare
+ensurePrepared();
+
+function startTracker({ getFocusSessionId }) {
+  let activeWin = null;
+  let open = null;
+  let idleSince = null;
+  let timer = null;
+
+  (async () => {
     try {
-      const raw = fs.readFileSync(bridgePath, 'utf8');
-      const cfg = JSON.parse(raw);
-      if (!cfg || typeof cfg !== 'object' || !cfg.token || typeof cfg.port !== 'number') {
-        throw new Error('invalid');
-      }
+      activeWin = (await import('active-win')).default;
+    } catch (err) {
+      console.error('[tracker] active-win unavailable:', err.message);
+    }
+  })();
+
+  function closeOpen(endedAt, idle) {
+    if (!open) return;
+    try {
+      closeRow.run([endedAt, endedAt - open.startedAt, idle ? 1 : 0, open.id]);
+    } catch (err) {
+      console.error('[tracker] closeOpen failed:', err.message);
+      ensurePrepared();
+    }
+    open = null;
+  }
+
+  function openNew(sample, now) {
+    try {
+      const info = insertRow.run([
+        sample.source,
+        sample.app ?? null,
+        sample.domain ?? null,
+        sample.title ?? null,
+        now,
+        getFocusSessionId(),
+      ]);
+      open = { id: Number(info.lastInsertRowid), key: sample.key, startedAt: now };
+    } catch (err) {
+      console.error('[tracker] openNew failed:', err.message);
+      ensurePrepared();
+    }
+  }
+
+  async function poll() {
+    ensurePrepared();
+    if (!insertRow || !closeRow || !touchRow) {
+      // DB not ready — skip this poll, will retry next tick
+      return;
+    }
+
+    const now = Date.now();
+    const idleSec = powerMonitor.getSystemIdleTime();
+    const isIdle = idleSec >= IDLE_AFTER_SEC;
+
+    if (isIdle) {
+      if (!idleSince) idleSince = now - idleSec * 1000;
+      closeOpen(now, true);
+      return;
+    }
+    idleSince = null;
+
+    if (!activeWin) return;
+
+    let win = null;
+    try {
+      win = await activeWin();
     } catch {
-      // Remove invalid bridge.json so bridge.js recreates it cleanly
-      try { fs.unlinkSync(bridgePath); } catch {}
+      return;
     }
-  } catch (err) {
-    console.warn('[main] startup cleanup skipped:', err.message);
-  }
+    if (!win || !win.owner) {
+      closeOpen(now, false);
+      return;
+    }
 
-  // Ensure DB is open (re-opens if previous close left it in a bad state)
-  const { openDb } = require('./db');
-  if (!openDb()) {
-    console.error('[main] database failed to open — app may not track activity');
-  }
+    const sample = {
+      source: 'desktop',
+      app: win.owner.name || 'unknown',
+      domain: null,
+      title: win.title || null,
+      key: `desktop|${win.owner.name}|${win.title}`,
+    };
 
-  createWindow();
-
-  try {
-    wireIpc();
-  } catch (err) {
-    console.error('[main] wireIpc failed:', err);
-  }
-
-  createTray();
-
-  tracker = startTracker({
-    getFocusSessionId: () => focus.getState().sessionId,
-  });
-  tracker.start();
-
-  try {
-    bridge = await startBridge({
-      getFocusState: () => focus.getState(),
-      onFocusCommand: (command) => {
-        if (command === 'toggle') focus.toggle();
-        else if (command === 'reset') focus.reset();
-        else if (command === 'skip') focus.skip();
-        else if (command === 'set-mode-work') focus.setMode('work');
-        else if (command === 'set-mode-short') focus.setMode('short');
-        else if (command === 'set-mode-long') focus.setMode('long');
-      },
-      onClientCountChange: (count) => {
-        if (win && !win.isDestroyed()) {
-          try { win.webContents.send('bridge:status', { paired: count > 0, clients: count }); } catch {}
+    if (open && open.key === sample.key) {
+      // Same window — update duration so long single-window sessions are recorded accurately
+      try {
+        touchRow.run([now - open.startedAt, open.id]);
+      } catch (err) {
+        // Statement may have become invalid — re-prepare and retry once
+        ensurePrepared();
+        if (touchRow) {
+          try { touchRow.run([now - open.startedAt, open.id]); } catch {}
         }
-      },
-    });
-
-    if (bridge) {
-      console.log(`[main] bridge ready on port ${bridge.port}`);
-    } else {
-      console.error('[main] bridge failed to start — no port bound');
+      }
+      return;
     }
-  } catch (err) {
-    console.error('[main] startBridge threw:', err);
-    bridge = null;
+    closeOpen(now, false);
+    openNew(sample, now);
   }
 
-  app.on('activate', () => win?.show());
-});
+  function start() {
+    if (timer) return;
+    timer = setInterval(() => {
+      poll().catch((err) => console.error('[tracker]', err.message));
+    }, POLL_MS);
+    poll().catch((err) => console.error('[tracker]', err.message));
+  }
 
-app.on('before-quit', () => {
-  app.isQuitting = true;
-  tracker?.stop();
-  bridge?.close();
-  try {
-    const { db } = require('./db');
-    if (db && db.isOpen) db.close();
-  } catch {}
-});
+  function stop() {
+    clearInterval(timer);
+    timer = null;
+    closeOpen(Date.now(), false);
+  }
 
-app.on('window-all-closed', (e) => e.preventDefault());
+  return { start, stop };
+}
+
+module.exports = { startTracker };
