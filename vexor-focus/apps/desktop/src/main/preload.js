@@ -36,4 +36,5 @@ contextBridge.exposeInMainWorld('vexor', {
   data: {
     wipe: () => ipcRenderer.invoke('data:wipe'),
   },
+  quit: () => ipcRenderer.send('quit-app'),
 });
