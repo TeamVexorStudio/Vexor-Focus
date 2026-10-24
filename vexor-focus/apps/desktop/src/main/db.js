@@ -67,4 +67,11 @@ function openDb() {
 // Open on module load
 openDb();
 
-module.exports = { db, CONFIG_DIR, DB_PATH, cleanLockFiles, openDb };
+function getDb() {
+  if (!db || !db.isOpen) {
+    openDb();
+  }
+  return db;
+}
+
+module.exports = { db: getDb, CONFIG_DIR, DB_PATH, cleanLockFiles, openDb };
