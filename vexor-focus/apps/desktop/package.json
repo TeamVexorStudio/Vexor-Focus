@@ -4,7 +4,8 @@
   "private": true,
   "main": "src/main/main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder --win portable"
   },
   "dependencies": {
     "active-win": "^8.2.1",
@@ -12,6 +13,18 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "electron": "^32.0.0"
+    "electron": "^32.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "studio.teamvexor.focus",
+    "productName": "Vexor Focus",
+    "files": [
+      "src/**/*",
+      "team-vexor.png"
+    ],
+    "win": {
+      "target": "portable"
+    }
   }
 }
