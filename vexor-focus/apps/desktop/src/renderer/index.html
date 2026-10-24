@@ -486,12 +486,12 @@
       <button data-nav="timer" class="active">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/>
-        </svg> Timer
+        </svg> Pomodoro
       </button>
       <button data-nav="stats">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 3v18h18M7 15l4-4 3 3 5-6"/>
-        </svg> Stats
+        </svg> Usage
       </button>
       <button data-nav="settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -514,7 +514,7 @@
 
     <!-- ---------- TIMER ---------- -->
     <section class="view active" data-view="timer">
-      <h1>Timer</h1>
+      <h1>Pomodoro</h1>
       <div class="timer-grid">
 
         <div class="timer-card">
@@ -568,7 +568,7 @@
     <!-- ---------- STATS ---------- -->
     <section class="view" data-view="stats">
       <div class="stats-head">
-        <h1 style="margin:0">Activity</h1>
+        <h1 style="margin:0">Usage</h1>
         <div class="range" id="range">
           <button data-range="today" class="active">Today</button>
           <button data-range="week">7 days</button>
@@ -636,6 +636,10 @@
             <input type="checkbox" id="s-notify"></label>
           <label class="field"><span>Track window titles</span>
             <input type="checkbox" id="s-titles" checked></label>
+          <div style="display:flex; gap:8px; margin-top:4px">
+            <button class="btn ghost" id="quitBtn" style="padding:9px 16px; color:#ff4d6d">Quit app</button>
+          </div>
+          <p class="hint" style="margin-top:10px">Quit from the top menu (File → Quit) or this button. Clicking the close button on the window minimizes to the tray.</p>
           <p class="hint">Window titles are stored locally on this machine only. Disable to log only the app name.</p>
         </div>
 
@@ -1161,6 +1165,17 @@
     await window.vexor.data.wipe();
     toast('All data deleted');
     if (document.querySelector('[data-view="stats"]').classList.contains('active')) loadStats();
+  });
+
+  $('#quitBtn').addEventListener('click', async () => {
+    if (!confirm('Quit Vexor Focus?')) return;
+    await window.vexor.focus.get();
+    window.vexor.quit();
+  });
+
+  // Handle window close — minimize to tray instead of quitting
+  window.addEventListener('beforeunload', () => {
+    // Let Electron handle this — it prevents actual quit in main process
   });
 
   /* ============================================================
