@@ -11,19 +11,33 @@ const FIXED_PORT = 47891;
 const DISCOVERY_PORT = 47890;
 
 function loadOrCreateConfig() {
+  // Clean up stale/invalid bridge.json that can block startup
+  let cfg = null;
   try {
-    const cfg = JSON.parse(fs.readFileSync(BRIDGE_FILE, 'utf8'));
-    if (cfg.token) {
+    const raw = fs.readFileSync(BRIDGE_FILE, 'utf8');
+    cfg = JSON.parse(raw);
+    if (cfg && typeof cfg === 'object' && cfg.token) {
       cfg.port = cfg.port || FIXED_PORT;
-      return cfg;
+      // Validate port is sane
+      if (typeof cfg.port !== 'number' || cfg.port < 1024 || cfg.port > 65535) {
+        cfg = null;
+      }
+    } else {
+      cfg = null;
     }
-  } catch { /* fall through */ }
+  } catch {
+    cfg = null;
+  }
 
-  const cfg = {
-    port: FIXED_PORT,
-    token: randomBytes(24).toString('hex'),
-  };
-  fs.writeFileSync(BRIDGE_FILE, JSON.stringify(cfg, null, 2));
+  if (!cfg) {
+    try { fs.unlinkSync(BRIDGE_FILE); } catch {}
+    cfg = {
+      port: FIXED_PORT,
+      token: randomBytes(24).toString('hex'),
+    };
+    fs.writeFileSync(BRIDGE_FILE, JSON.stringify(cfg, null, 2));
+  }
+
   return cfg;
 }
 
@@ -71,6 +85,9 @@ async function startBridge({ getFocusState, onFocusCommand, onClientCountChange 
   const closeRow = db.prepare(`
     UPDATE activity SET ended_at = ?, duration_ms = ? WHERE id = ?
   `);
+  const touchRow = db.prepare(`
+    UPDATE activity SET duration_ms = ? WHERE id = ?
+  `);
 
   let openWeb = null;
 
@@ -114,6 +131,9 @@ async function startBridge({ getFocusState, onFocusCommand, onClientCountChange 
             getFocusState().sessionId,
           ]);
           openWeb = { id: Number(info.lastInsertRowid), key, startedAt: now };
+        } else {
+          // Same tab — update duration so long single-tab sessions are recorded accurately
+          touchRow.run([now - openWeb.startedAt, openWeb.id]);
         }
       } else if (msg.type === 'focus-command') {
         try { onFocusCommand(msg.command); } catch (err) {
