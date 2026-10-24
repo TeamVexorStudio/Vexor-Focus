@@ -4,12 +4,18 @@ const fs = require('node:fs');
 const { db } = require('./db');
 const { startTracker } = require('./tracker');
 const { startBridge, readBridgeConfig } = require('./bridge');
-const { Focus } = require('./focus');
-
-app.setAppUserModelId('studio.teamvexor.focus');
+const { Focus } = require('./focus');  app.setAppUserModelId('studio.teamvexor.focus');
 app.isQuitting = false;
 
 const focus = new Focus();
+
+// Read back the persisted start-on-login choice and register it with Electron.
+try {
+  app.setLoginItemSettings({ openAtLogin: focus.settings.startOnLogin });
+} catch (err) {
+  console.warn('[main] could not set login item:', err.message);
+}
+
 let win = null;
 let tray = null;
 let tracker = null;
@@ -80,16 +86,21 @@ function wireIpc() {
     return focus.getState();
   });
 
-  ipcMain.handle('settings:get', () => focus.settings);
+  ipcMain.handle('settings:get', () => ({ ...focus.settings }));
   ipcMain.handle('settings:set', (_e, patch) => {
     focus.saveSettings(patch);
-    if ('startOnLogin' in patch) {
-      app.setLoginItemSettings({ openAtLogin: patch.startOnLogin });
-    }
-    return focus.settings;
+    app.setLoginItemSettings({ openAtLogin: focus.settings.startOnLogin });
+    return { ...focus.settings };
   });
 
-  ipcMain.handle('settings:login', () => app.getLoginItemSettings().openAtLogin);
+  ipcMain.handle('settings:reload', () => {
+    focus.reloadSettings();
+    app.setLoginItemSettings({ openAtLogin: focus.settings.startOnLogin });
+    return { ...focus.settings };
+  });
+
+
+
 
   ipcMain.handle('bridge:info', () => {
     const cfg = readBridgeConfig();
@@ -146,9 +157,10 @@ function wireIpc() {
     return true;
   });
 
-  ipcMain.on('quit-app', () => {
+  ipcMain.handle('quit-app', () => {
     app.isQuitting = true;
     app.quit();
+    return true;
   });
 }
 
@@ -176,21 +188,16 @@ app.whenReady().then(async () => {
   if (!openDb()) {
     console.error('[main] database failed to open — app may not track activity');
   }
-  // Verify the getter returns a real DB instance
-  const d = db();
-  if (!d || typeof d.prepare !== 'function') {
-    console.error('[main] database getter returned invalid instance');
+  // Reload persisted settings now that the DB is definitely open, then re-apply the
+  // login-item setting so the in-memory Focus.settings.startOnLogin and Windows match.
+  try {
+    focus.reloadSettings();
+    app.setLoginItemSettings({ openAtLogin: focus.settings.startOnLogin });
+  } catch (err) {
+    console.warn('[main] could not reload settings after DB open:', err.message);
   }
 
-  // Restore previous login-start setting
-  try {
-    const loggedIn = app.getLoginItemSettings().openAtLogin;
-    if (loggedIn) {
-      focus.saveSettings({ startOnLogin: true });
-    }
-  } catch (err) {
-    console.warn('[main] could not read login setting:', err.message);
-  }
+
 
   createWindow();
 
@@ -247,6 +254,13 @@ app.on('before-quit', () => {
     const current = db() || openDb();
     if (current && current.isOpen) current.close();
   } catch {}
-});
+});  app.on('window-all-closed', () => { /* keep app alive in tray */ });
 
-app.on('window-all-closed', (e) => e.preventDefault());
+  // Keep the Windows login-item setting in sync after every quit, even when the window is
+  // hidden rather than destroyed. Without this, toggling Start on Windows login off in-app
+  // would only take effect after the next restart.
+  app.on('before-quit', () => {
+    try {
+      app.setLoginItemSettings({ openAtLogin: focus.settings.startOnLogin });
+    } catch {}
+  });
