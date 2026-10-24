@@ -636,6 +636,8 @@
             <input type="checkbox" id="s-notify"></label>
           <label class="field"><span>Track window titles</span>
             <input type="checkbox" id="s-titles" checked></label>
+          <label class="field"><span>Start on Windows login</span>
+            <input type="checkbox" id="s-startOnLogin"></label>
           <div style="display:flex; gap:8px; margin-top:4px">
             <button class="btn ghost" id="quitBtn" style="padding:9px 16px; color:#ff4d6d">Quit app</button>
           </div>
@@ -1026,14 +1028,15 @@
      ============================================================ */
 
   const SETTING_FIELDS = {
-    work:      { el: () => $('#s-work'),      min:1, max:180 },
-    short:     { el: () => $('#s-short'),     min:1, max:60  },
-    long:      { el: () => $('#s-long'),      min:1, max:90  },
-    interval:  { el: () => $('#s-interval'),  min:1, max:12  },
-    autoStart: { el: () => $('#s-autoStart'), bool:true },
-    sound:     { el: () => $('#s-sound'),     bool:true },
-    notify:    { el: () => $('#s-notify'),    bool:true },
-    titles:    { el: () => $('#s-titles'),    bool:true, default:true },
+    work:         { el: () => $('#s-work'),          min:1, max:180 },
+    short:        { el: () => $('#s-short'),         min:1, max:60  },
+    long:         { el: () => $('#s-long'),          min:1, max:90  },
+    interval:     { el: () => $('#s-interval'),      min:1, max:12  },
+    autoStart:    { el: () => $('#s-autoStart'),     bool:true },
+    sound:        { el: () => $('#s-sound'),         bool:true },
+    notify:       { el: () => $('#s-notify'),        bool:true },
+    titles:       { el: () => $('#s-titles'),        bool:true, default:true },
+    startOnLogin: { el: () => $('#s-startOnLogin'), bool:true },
   };
 
   async function loadSettings() {
@@ -1138,6 +1141,7 @@
         el.value = val;
       }
       settings = await window.vexor.settings.set({ [key]: val });
+      // Login toggle is handled immediately by main process via settings:set
     });
   }
 
@@ -1172,6 +1176,9 @@
     await window.vexor.focus.get();
     window.vexor.quit();
   });
+
+  // Listen for login-toggle changes from main
+  window.vexor.settings.set({ startOnLogin: $('#s-startOnLogin').checked });
 
   // Handle window close — minimize to tray instead of quitting
   window.addEventListener('beforeunload', () => {
