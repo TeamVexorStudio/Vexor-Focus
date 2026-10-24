@@ -4,6 +4,19 @@ const http = require('node:http');
 const { randomBytes } = require('node:crypto');
 const { WebSocketServer } = require('ws');
 const { db, CONFIG_DIR } = require('./db');
+const { openDb } = require('./db');
+
+// Ensure DB is open before using it (in case it was closed/reopened)
+function ensureDb() {
+  if (!db || !db.isOpen) {
+    const reopened = openDb();
+    if (!reopened) {
+      console.error('[bridge] database unavailable — activity tracking disabled');
+      return false;
+    }
+  }
+  return true;
+}
 
 const BRIDGE_FILE = path.join(CONFIG_DIR, 'bridge.json');
 const PROTOCOL_VERSION = 1;
@@ -78,18 +91,32 @@ async function startBridge({ getFocusState, onFocusCommand, onClientCountChange 
   const cfg = baseCfg;
   const clients = new Set();
 
-  const insertRow = db.prepare(`
-    INSERT INTO activity (source, domain, title, started_at, focus_session_id)
-    VALUES ('extension', ?, ?, ?, ?)
-  `);
-  const closeRow = db.prepare(`
-    UPDATE activity SET ended_at = ?, duration_ms = ? WHERE id = ?
-  `);
-  const touchRow = db.prepare(`
-    UPDATE activity SET duration_ms = ? WHERE id = ?
-  `);
+  let insertRow, closeRow, touchRow;
+  let lastPrepare = 0;
 
-  let openWeb = null;
+  function ensurePrepared() {
+    const now = Date.now();
+    if (insertRow && closeRow && touchRow && now - lastPrepare < 30000) return;
+    if (!ensureDb()) return;
+    try {
+      insertRow = db.prepare(`
+        INSERT INTO activity (source, domain, title, started_at, focus_session_id)
+        VALUES ('extension', ?, ?, ?, ?)
+      `);
+      closeRow = db.prepare(`
+        UPDATE activity SET ended_at = ?, duration_ms = ? WHERE id = ?
+      `);
+      touchRow = db.prepare(`
+        UPDATE activity SET duration_ms = ? WHERE id = ?
+      `);
+      lastPrepare = now;
+    } catch (err) {
+      console.error('[bridge] failed to prepare statements:', err.message);
+    }
+  }
+
+  // Initial prepare
+  ensurePrepared();
 
   function notifyCount() {
     try { onClientCountChange?.(clients.size); } catch {}
@@ -120,20 +147,37 @@ async function startBridge({ getFocusState, onFocusCommand, onClientCountChange 
       }
 
       if (msg.type === 'web') {
+        ensurePrepared();
+        if (!insertRow || !closeRow || !touchRow) {
+          // DB not ready — drop this report
+          return;
+        }
         const now = Date.now();
         const key = `${msg.domain}|${msg.title}`;
         if (!openWeb || openWeb.key !== key) {
-          if (openWeb) closeRow.run([now, now - openWeb.startedAt, openWeb.id]);
-          const info = insertRow.run([
-            msg.domain || null,
-            msg.title || null,
-            now,
-            getFocusState().sessionId,
-          ]);
-          openWeb = { id: Number(info.lastInsertRowid), key, startedAt: now };
+          if (openWeb) {
+            try { closeRow.run([now, now - openWeb.startedAt, openWeb.id]); } catch {}
+          }
+          try {
+            const info = insertRow.run([
+              msg.domain || null,
+              msg.title || null,
+              now,
+              getFocusState().sessionId,
+            ]);
+            openWeb = { id: Number(info.lastInsertRowid), key, startedAt: now };
+          } catch (err) {
+            console.error('[bridge] web insert failed:', err.message);
+            ensurePrepared();
+          }
         } else {
           // Same tab — update duration so long single-tab sessions are recorded accurately
-          touchRow.run([now - openWeb.startedAt, openWeb.id]);
+          try {
+            touchRow.run([now - openWeb.startedAt, openWeb.id]);
+          } catch (err) {
+            console.error('[bridge] web touch failed:', err.message);
+            ensurePrepared();
+          }
         }
       } else if (msg.type === 'focus-command') {
         try { onFocusCommand(msg.command); } catch (err) {
@@ -147,7 +191,7 @@ async function startBridge({ getFocusState, onFocusCommand, onClientCountChange 
       if (authed) notifyCount();
       if (openWeb) {
         const now = Date.now();
-        closeRow.run([now, now - openWeb.startedAt, openWeb.id]);
+        try { closeRow.run([now, now - openWeb.startedAt, openWeb.id]); } catch {}
         openWeb = null;
       }
     });
