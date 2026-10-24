@@ -12,6 +12,11 @@ const closeRow = db.prepare(`
   UPDATE activity SET ended_at = ?, duration_ms = ?, idle = ? WHERE id = ?
 `);
 
+// Update the duration of the currently-open row without closing it
+const touchRow = db.prepare(`
+  UPDATE activity SET duration_ms = ? WHERE id = ?
+`);
+
 function startTracker({ getFocusSessionId }) {
   let activeWin = null;
   let open = null;
@@ -77,7 +82,11 @@ function startTracker({ getFocusSessionId }) {
       key: `desktop|${win.owner.name}|${win.title}`,
     };
 
-    if (open && open.key === sample.key) return;
+    if (open && open.key === sample.key) {
+      // Same window — update duration so long single-window sessions are recorded accurately
+      touchRow.run([now - open.startedAt, open.id]);
+      return;
+    }
     closeOpen(now, false);
     openNew(sample, now);
   }
