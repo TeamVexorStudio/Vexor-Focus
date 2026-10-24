@@ -23,8 +23,13 @@
       "src/**/*",
       "team-vexor.png"
     ],
-    "win": {
-      "target": "portable"
-    }
+    "buildDependenciesFromSource": true,
+  "asar": true,
+  "asarUnpack": [
+    "**/node-sqlite3-wasm/**"
+  ],
+  "win": {
+    "target": ["portable", "nsis"]
+  }
   }
 }
