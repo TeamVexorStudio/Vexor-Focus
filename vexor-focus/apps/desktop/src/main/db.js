@@ -18,41 +18,53 @@ function cleanLockFiles() {
   }
 }
 
-cleanLockFiles();
+let db = null;
 
-const db = new Database(DB_PATH);
+function openDb() {
+  cleanLockFiles();
+  try {
+    db = new Database(DB_PATH);
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS activity (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        source        TEXT NOT NULL,
+        app           TEXT,
+        domain        TEXT,
+        title         TEXT,
+        started_at    INTEGER NOT NULL,
+        ended_at      INTEGER,
+        duration_ms   INTEGER NOT NULL DEFAULT 0,
+        idle          INTEGER NOT NULL DEFAULT 0,
+        focus_session_id TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_activity_started ON activity(started_at);
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS activity (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    source        TEXT NOT NULL,
-    app           TEXT,
-    domain        TEXT,
-    title         TEXT,
-    started_at    INTEGER NOT NULL,
-    ended_at      INTEGER,
-    duration_ms   INTEGER NOT NULL DEFAULT 0,
-    idle          INTEGER NOT NULL DEFAULT 0,
-    focus_session_id TEXT
-  );
-  CREATE INDEX IF NOT EXISTS idx_activity_started ON activity(started_at);
+      CREATE TABLE IF NOT EXISTS focus_sessions (
+        id          TEXT PRIMARY KEY,
+        mode        TEXT NOT NULL,
+        planned_ms  INTEGER NOT NULL,
+        started_at  INTEGER NOT NULL,
+        ended_at    INTEGER,
+        completed   INTEGER NOT NULL DEFAULT 0
+      );
 
-  CREATE TABLE IF NOT EXISTS focus_sessions (
-    id          TEXT PRIMARY KEY,
-    mode        TEXT NOT NULL,
-    planned_ms  INTEGER NOT NULL,
-    started_at  INTEGER NOT NULL,
-    ended_at    INTEGER,
-    completed   INTEGER NOT NULL DEFAULT 0
-  );
+      CREATE TABLE IF NOT EXISTS categories (
+        match     TEXT PRIMARY KEY,
+        category  TEXT NOT NULL,
+        productive INTEGER NOT NULL DEFAULT 0
+      );
 
-  CREATE TABLE IF NOT EXISTS categories (
-    match     TEXT PRIMARY KEY,
-    category  TEXT NOT NULL,
-    productive INTEGER NOT NULL DEFAULT 0
-  );
+      CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+    `);
+    return db;
+  } catch (err) {
+    console.error('[db] failed to open database:', err.message);
+    db = null;
+    return null;
+  }
+}
 
-  CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
-`);
+// Open on module load
+openDb();
 
-module.exports = { db, CONFIG_DIR, DB_PATH, cleanLockFiles };
+module.exports = { db, CONFIG_DIR, DB_PATH, cleanLockFiles, openDb };
