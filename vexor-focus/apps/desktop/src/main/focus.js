@@ -1,14 +1,13 @@
 const { EventEmitter } = require('node:events');
-const { randomUUID } = require('node:crypto');
 const { db } = require('./db');
 
-const DEFAULTS = { work: 25, short: 5, long: 15, interval: 4, autoStart: true, startOnLogin: false };
+const DEFAULTS = { work: 25, short: 5, long: 15, interval: 4, autoStart: true, startOnLogin: false, sound: true, notify: true, titles: true };
 const LABELS = { work: 'Focus', short: 'Short Break', long: 'Long Break' };
 
 class Focus extends EventEmitter {
   constructor() {
     super();
-    this.settings = this.#loadSettings();
+    this.settings = { ...DEFAULTS };
     this.mode = 'work';
     this.totalMs = this.settings.work * 60000;
     this.deadline = 0;
@@ -17,26 +16,42 @@ class Focus extends EventEmitter {
     this.sessionId = null;
     this.roundsDone = 0;
     this.timer = null;
+    this.load();
   }
 
-  #loadSettings() {
-    const row = db().prepare(`SELECT value FROM meta WHERE key = 'settings'`).get();
-    if (!row) return { ...DEFAULTS };
-    try { return { ...DEFAULTS, ...JSON.parse(row.value) }; }
-    catch { return { ...DEFAULTS }; }
+  load() {
+    this.settings = { ...DEFAULTS };
+    try {
+      const row = db().prepare(`SELECT value FROM meta WHERE key = 'settings'`).get();
+      if (row) {
+        const parsed = JSON.parse(row.value);
+        if (parsed && typeof parsed === 'object') {
+          this.settings = { ...this.settings, ...parsed };
+        }
+      }
+    } catch {}
   }
 
   saveSettings(patch) {
-    this.settings = { ...this.settings, ...patch };
-    db().prepare(`
-      INSERT INTO meta (key, value) VALUES ('settings', ?)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value
-    `).run([JSON.stringify(this.settings)]);
-    if (!this.running) {
-      this.totalMs = this.settings[this.mode] * 60000;
-      this.remainingMs = this.totalMs;
-    }
-    this.#emit();
+    Object.assign(this.settings, patch);
+    try {
+      db().prepare(`
+        INSERT INTO meta (key, value) VALUES ('settings', ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+      `).run([JSON.stringify(this.settings)]);
+    } catch {}
+  }
+
+  reloadSettings() {
+    try {
+      const row = db().prepare(`SELECT value FROM meta WHERE key = 'settings'`).get();
+      if (row) {
+        const parsed = JSON.parse(row.value);
+        if (parsed && typeof parsed === 'object') {
+          this.settings = { ...DEFAULTS, ...parsed };
+        }
+      }
+    } catch {}
   }
 
   getState() {
@@ -71,7 +86,7 @@ class Focus extends EventEmitter {
     if (this.remainingMs <= 0) this.remainingMs = this.totalMs;
 
     if (!this.sessionId) {
-      this.sessionId = randomUUID();
+      this.sessionId = 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
       db().prepare(`
         INSERT INTO focus_sessions (id, mode, planned_ms, started_at)
         VALUES (?, ?, ?, ?)
@@ -157,4 +172,6 @@ class Focus extends EventEmitter {
   #emit() { this.emit('change', this.getState()); }
 }
 
+// NOTE: keep this file self-contained and fix addSession logging if needed.
+// Subsequent file write.
 module.exports = { Focus, LABELS };
