@@ -3,12 +3,12 @@ const path = require('node:path');
 const http = require('node:http');
 const { randomBytes } = require('node:crypto');
 const { WebSocketServer } = require('ws');
-const { db, CONFIG_DIR } = require('./db');
-const { openDb } = require('./db');
+const { db, CONFIG_DIR, openDb } = require('./db');
 
 // Ensure DB is open before using it (in case it was closed/reopened)
 function ensureDb() {
-  if (!db || !db.isOpen) {
+  const current = db();
+  if (!current || !current.isOpen) {
     const reopened = openDb();
     if (!reopened) {
       console.error('[bridge] database unavailable — activity tracking disabled');
