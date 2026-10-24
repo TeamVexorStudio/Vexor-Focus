@@ -1141,8 +1141,33 @@
         el.value = val;
       }
       settings = await window.vexor.settings.set({ [key]: val });
-      // Login toggle is handled immediately by main process via settings:set
+      // Keep the front-end mirrors of settings in sync after every change, including
+      // startOnLogin, so the next loadSettings() reads the persisted value.
+      const refreshed = await window.vexor.settings.get();
+      for (const [k, v] of Object.entries(refreshed)) {
+        if (k in SETTING_FIELDS) settings[k] = v;
+      }
     });
+  }
+
+  // Subscribe to focus:state so the Start on Windows login toggle can re-sync whenever a
+  // fresh Focus snapshot arrives (for example after a restart during a session).
+  window.vexor.focus.onState((state) => {
+    if (state && state.sessionId && state.sessionId !== focusSessionId) {
+      focusSessionId = state.sessionId;
+      refreshLoginCheckbox();
+    }
+  });
+
+  async function refreshLoginCheckbox() {
+    try {
+      const s = await window.vexor.settings.get();
+      if (s && 'startOnLogin' in s) {
+        settings.startOnLogin = s.startOnLogin;
+        const loginEl = $('#s-startOnLogin');
+        if (loginEl) loginEl.checked = !!s.startOnLogin;
+      }
+    } catch {}
   }
 
   $('#exportBtn').addEventListener('click', async () => {
@@ -1177,8 +1202,7 @@
     window.vexor.quit();
   });
 
-  // Listen for login-toggle changes from main
-  window.vexor.settings.set({ startOnLogin: $('#s-startOnLogin').checked });
+
 
   // Handle window close — minimize to tray instead of quitting
   window.addEventListener('beforeunload', () => {
