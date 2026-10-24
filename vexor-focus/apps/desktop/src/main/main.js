@@ -138,9 +138,32 @@ function wireIpc() {
     `);
     return true;
   });
+
+  ipcMain.on('quit-app', () => {
+    app.isQuitting = true;
+    app.quit();
+  });
 }
 
 app.whenReady().then(async () => {
+  // Repair corrupted bridge.json if present (db.js already cleans lock files)
+  try {
+    const { CONFIG_DIR } = require('./db');
+    const bridgePath = path.join(CONFIG_DIR, 'bridge.json');
+    try {
+      const raw = fs.readFileSync(bridgePath, 'utf8');
+      const cfg = JSON.parse(raw);
+      if (!cfg || typeof cfg !== 'object' || !cfg.token || typeof cfg.port !== 'number') {
+        throw new Error('invalid');
+      }
+    } catch {
+      // Remove invalid bridge.json so bridge.js recreates it cleanly
+      try { fs.unlinkSync(bridgePath); } catch {}
+    }
+  } catch (err) {
+    console.warn('[main] startup cleanup skipped:', err.message);
+  }
+
   createWindow();
 
   try {
