@@ -1,5 +1,5 @@
 const { powerMonitor } = require('electron');
-const { db } = require('./db');
+const { db, openDb } = require('./db');
 
 const POLL_MS = 1000;
 const IDLE_AFTER_SEC = 60;
@@ -11,15 +11,20 @@ function ensurePrepared() {
   // Re-prepare statements if the DB was reopened (e.g. after a crash recovery)
   const now = Date.now();
   if (insertRow && closeRow && touchRow && now - lastPrepare < 30000) return;
+  const d = db();
+  if (!d || typeof d.prepare !== 'function') {
+    console.error('[tracker] database unavailable (null or not a DB instance)');
+    return;
+  }
   try {
-    insertRow = db.prepare(`
+    insertRow = d.prepare(`
       INSERT INTO activity (source, app, domain, title, started_at, focus_session_id)
       VALUES (?, ?, ?, ?, ?, ?)
     `);
-    closeRow = db.prepare(`
+    closeRow = d.prepare(`
       UPDATE activity SET ended_at = ?, duration_ms = ?, idle = ? WHERE id = ?
     `);
-    touchRow = db.prepare(`
+    touchRow = d.prepare(`
       UPDATE activity SET duration_ms = ? WHERE id = ?
     `);
     lastPrepare = now;
