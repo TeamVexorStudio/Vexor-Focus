@@ -146,7 +146,7 @@ function wireIpc() {
 }
 
 app.whenReady().then(async () => {
-  // Repair corrupted bridge.json if present (db.js already cleans lock files)
+  // Repair corrupted bridge.json if present (db.js cleans lock files on open)
   try {
     const { CONFIG_DIR } = require('./db');
     const bridgePath = path.join(CONFIG_DIR, 'bridge.json');
@@ -162,6 +162,12 @@ app.whenReady().then(async () => {
     }
   } catch (err) {
     console.warn('[main] startup cleanup skipped:', err.message);
+  }
+
+  // Ensure DB is open (re-opens if previous close left it in a bad state)
+  const { openDb } = require('./db');
+  if (!openDb()) {
+    console.error('[main] database failed to open — app may not track activity');
   }
 
   createWindow();
@@ -214,7 +220,10 @@ app.on('before-quit', () => {
   app.isQuitting = true;
   tracker?.stop();
   bridge?.close();
-  try { db.close(); } catch {}
+  try {
+    const { db } = require('./db');
+    if (db && db.isOpen) db.close();
+  } catch {}
 });
 
 app.on('window-all-closed', (e) => e.preventDefault());
