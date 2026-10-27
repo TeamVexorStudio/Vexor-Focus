@@ -1,13 +1,13 @@
 # Vexor Focus
 
-Local-first Pomodoro timer and computer usage tracker. Desktop app for Windows + Chrome extension. Everything stays on your machine — no accounts, no cloud sync, no telemetry.
+Local-first Pomodoro timer and computer usage tracker. Desktop app for Windows + Chrome extension. Everything stays on your machine - no accounts, no cloud sync, no telemetry.
 
 ## What it does
 
-- **Pomodoro timer** — Focus / Short Break / Long Break cycles with auto-start, custom durations, and round tracking.
-- **Usage tracking** — Records which app or browser tab you're using and for how long. Data is categorized as productive / neutral / distracting via match rules you control.
-- **Browser blocking** — While a Focus session is running in Work mode, sites on your blocklist get blocked in Chrome via declarativeNetRequest.
-- **Extension pairing** — The desktop app exposes a local WebSocket bridge; the Chrome extension connects to it to receive timer state and send active-tab reports. Auto-discovery on `127.0.0.1:47890`.
+- **Pomodoro timer** - Focus / Short Break / Long Break cycles with auto-start, custom durations, and round tracking.
+- **Usage tracking** - Records which app or browser tab you're using and for how long. Data is categorized as productive / neutral / distracting via match rules you control.
+- **Browser blocking** - While a Focus session is running in Work mode, sites on your blocklist get blocked in Chrome via declarativeNetRequest.
+- **Extension pairing** - The desktop app exposes a local WebSocket bridge; the Chrome extension connects to it to receive timer state and send active-tab reports. Auto-discovery on `127.0.0.1:47890`.
 
 ## Architecture
 
@@ -25,7 +25,7 @@ packages/           shared libraries (currently empty)
 - **Database**: `node-sqlite3-wasm` SQLite file at `%APPDATA%\TeamVexor\vexor.db` (Windows) or `~/.config/TeamVexor/vexor.db` (other).
 - **Bridge**: Local WebSocket server (`ws`) on `127.0.0.1`, port `47891` by default (plus a discovery HTTP server on `47890`). Token-based auth in `bridge.json`.
 - **Tracker**: Polls `active-win` every second for desktop windows; extension reports active tab every 30s via alarms.
-- **Idle detection**: `powerMonitor.getSystemIdleTime()` — activity paused after 60s of system idle.
+- **Idle detection**: `powerMonitor.getSystemIdleTime()` - activity paused after 60s of system idle.
 
 ## Getting started
 
@@ -47,7 +47,7 @@ npm install
 npm run build
 ```
 
-Produces `dist/Vexor Focus 0.1.0.exe` — a portable Windows executable (no installer needed, no admin rights). Just double-click to run.
+Produces `dist/Vexor Focus 0.1.0.exe` - a portable Windows executable (no installer needed, no admin rights). Just double-click to run.
 
 #### Start on Windows login
 
